@@ -27,6 +27,6 @@
 
 - `assets/immortalitytotem/items`：26.2 客户端物品定义。
 - `assets/immortalitytotem/models/item`：原版图腾底图与换色遮罩组合模型。
-- `assets/immortalitytotem/textures/item`：透明换色遮罩。
+- `assets/immortalitytotem/textures/item`：32 帧缓慢呼吸、蓝绿黄炫彩扫描与轻故障动画遮罩。
 - `data/immortalitytotem/recipe`：九图腾合成配方。
-- `tools/generate_totem_overlay.py`：从本地 26.2 原版纹理确定性重建遮罩。
+- `tools/generate_totem_overlay.py`：从本地 26.2 原版纹理确定性重建动画遮罩和 `.png.mcmeta`。
