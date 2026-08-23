@@ -27,6 +27,6 @@
 
 - `assets/immortalitytotem/items`：26.2 客户端物品定义。
 - `assets/immortalitytotem/models/item`：材质包底图与独立几何动效遮罩组合模型。
-- `assets/immortalitytotem/textures/item`：与底层材质无关的低频斜向绿调电光和高频游走残缺外框动画遮罩。
+- `assets/immortalitytotem/textures/item`：从原版图腾右眼四格喷向右上方的八帧抽帧像素火焰遮罩。
 - `data/immortalitytotem/recipe`：九图腾合成配方。
 - `tools/generate_totem_overlay.py`：不读取原版纹理，确定性生成几何动画遮罩和 `.png.mcmeta`。

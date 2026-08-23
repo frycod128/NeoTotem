@@ -1,32 +1,96 @@
-"""生成与底层图标材质无关的永生图腾动画特效遮罩。"""
+"""生成从原版图腾右眼喷向右上方的抽帧像素火焰遮罩。"""
 
 from __future__ import annotations
 
 import argparse
 import json
-import math
 from pathlib import Path
 
 from PIL import Image
 
 
-FRAME_SIZE = 16
-FRAME_COUNT = 120
+# 使用原版纹理两倍分辨率，让火焰颗粒比图腾本体像素更细，同时保持准确对位。
+FRAME_SIZE = 32
+FRAME_COUNT = 8
 
-# 每帧持续两个游戏刻：完整循环 12 秒。
-LIGHTNING_START = 50
-LIGHTNING_GROW_FRAMES = 9
-LIGHTNING_HOLD_FRAMES = 1
-LIGHTNING_FADE_FRAMES = 4
-OUTLINE_STARTS = (4, 24, 44, 64, 84, 104)
-OUTLINE_DURATION = 7
+# 原版 16×16 图腾右眼的四个像素；每格映射为遮罩中的 2×2 区域。
+RIGHT_EYE_PIXELS = ((9, 5), (10, 5), (9, 6), (10, 6))
+FLAME_ROOTS = ((19, 11), (21, 11), (19, 13), (21, 13))
 
 TRANSPARENT = (0, 0, 0, 0)
-INK_GREEN = (3, 21, 16)
-DARK_GREEN = (10, 47, 35)
-MUTED_GREEN = (74, 119, 91)
-PALE_GREEN = (199, 222, 205)
-GREEN_WHITE = (241, 248, 243)
+DEEP_BLUE = (8, 17, 126)
+ELECTRIC_BLUE = (16, 54, 255)
+CYAN = (0, 226, 255)
+PALE_CYAN = (205, 255, 250)
+VIOLET = (112, 20, 255)
+MAGENTA = (247, 0, 232)
+
+
+# 每一帧都是独立设计的关键姿势，而不是在同一路径上缓慢平移。
+# 四条火舌分别从右眼四格起步，并在离开眼眶后合流、分叉或抽断。
+FLAME_KEYFRAMES = (
+    (
+        ((19, 11), (20, 9), (22, 8), (23, 6)),
+        ((21, 11), (22, 9), (24, 8), (25, 6)),
+        ((19, 13), (20, 11), (22, 10), (24, 9)),
+        ((21, 13), (22, 11), (24, 10), (26, 8)),
+    ),
+    (
+        ((19, 11), (21, 9), (22, 7), (25, 6), (26, 3)),
+        ((21, 11), (23, 9), (25, 8), (27, 6), (29, 5)),
+        ((19, 13), (21, 11), (23, 10), (25, 8)),
+        ((21, 13), (23, 11), (26, 10), (28, 8), (31, 7)),
+    ),
+    (
+        ((19, 11), (21, 9), (23, 8), (24, 5), (27, 3), (28, 0)),
+        ((21, 11), (23, 10), (26, 8), (28, 6), (31, 5)),
+        ((19, 13), (21, 11), (24, 10), (26, 7), (29, 6)),
+        ((21, 13), (23, 11), (25, 9), (27, 5), (30, 3), (31, 1)),
+    ),
+    (
+        ((19, 11), (20, 9), (23, 7), (23, 4), (26, 2), (25, 0)),
+        ((21, 11), (22, 9), (25, 8), (27, 5), (30, 4)),
+        ((19, 13), (21, 11), (22, 8), (25, 6), (27, 3)),
+        ((21, 13), (23, 11), (26, 9), (28, 6), (31, 3)),
+    ),
+    (
+        ((19, 11), (22, 10), (24, 8), (27, 7), (29, 4), (31, 3)),
+        ((21, 11), (23, 9), (26, 7), (28, 4), (30, 1)),
+        ((19, 13), (21, 11), (24, 9), (25, 6)),
+        ((21, 13), (23, 11), (26, 10), (29, 8), (31, 6)),
+    ),
+    (
+        ((19, 11), (20, 9), (23, 8), (25, 6)),
+        ((21, 11), (23, 10), (25, 8), (26, 5), (28, 3)),
+        ((19, 13), (21, 11), (23, 10)),
+        ((21, 13), (23, 11), (25, 10), (27, 8)),
+    ),
+    (
+        ((19, 11), (21, 9), (24, 8), (25, 5), (28, 3), (30, 0)),
+        ((21, 11), (23, 9), (24, 6), (27, 4), (29, 2)),
+        ((19, 13), (21, 11), (24, 10), (27, 8), (30, 7)),
+        ((21, 13), (24, 11), (26, 9), (29, 6), (31, 4)),
+    ),
+    (
+        ((19, 11), (21, 9), (23, 8)),
+        ((21, 11), (23, 10), (25, 7)),
+        ((19, 13), (21, 11), (23, 10)),
+        ((21, 13), (23, 11), (26, 9)),
+    ),
+)
+
+
+# 火星位置每帧大步跃迁，故意不补齐中间运动轨迹。
+SPARK_KEYFRAMES = (
+    ((26, 5, VIOLET), (28, 4, ELECTRIC_BLUE)),
+    ((28, 2, VIOLET), (31, 4, MAGENTA), (26, 1, ELECTRIC_BLUE)),
+    ((30, 0, MAGENTA), (31, 7, VIOLET), (27, 1, ELECTRIC_BLUE)),
+    ((28, 0, VIOLET), (31, 1, MAGENTA), (29, 7, ELECTRIC_BLUE)),
+    ((31, 0, MAGENTA), (30, 5, VIOLET), (27, 2, ELECTRIC_BLUE)),
+    ((30, 1, VIOLET), (31, 4, MAGENTA), (28, 6, ELECTRIC_BLUE)),
+    ((31, 2, MAGENTA), (29, 0, VIOLET), (31, 7, ELECTRIC_BLUE)),
+    ((27, 5, ELECTRIC_BLUE), (30, 2, VIOLET), (31, 0, MAGENTA)),
+)
 
 
 def composite_pixel(
@@ -35,7 +99,6 @@ def composite_pixel(
     color: tuple[int, int, int],
     alpha: int,
 ) -> None:
-    """按标准 alpha 规则将一个特效像素叠到当前帧。"""
     x, y = position
     if not (0 <= x < FRAME_SIZE and 0 <= y < FRAME_SIZE) or alpha <= 0:
         return
@@ -44,10 +107,6 @@ def composite_pixel(
     source_alpha = alpha / 255.0
     destination_alpha = old_alpha / 255.0
     result_alpha = source_alpha + destination_alpha * (1.0 - source_alpha)
-    if result_alpha == 0.0:
-        image.putpixel(position, TRANSPARENT)
-        return
-
     channels = tuple(
         round(
             (source * source_alpha + destination * destination_alpha * (1.0 - source_alpha))
@@ -59,7 +118,6 @@ def composite_pixel(
 
 
 def rasterize_line(start: tuple[int, int], end: tuple[int, int]) -> list[tuple[int, int]]:
-    """用 Bresenham 算法生成连续且保持像素硬边的线段。"""
     x, y = start
     end_x, end_y = end
     delta_x = abs(end_x - x)
@@ -92,144 +150,65 @@ def rasterize_polyline(vertices: tuple[tuple[int, int], ...]) -> list[tuple[int,
     return points
 
 
-# 一条从左下向右上贯穿图标的折线；转折有意不规则，避免再次成为平直扫光。
-LIGHTNING_PATH = rasterize_polyline((
-    (0, 15), (1, 13), (3, 12), (2, 10), (5, 9), (4, 7), (7, 6),
-    (6, 4), (9, 5), (9, 3), (12, 2), (11, 0), (14, 1), (15, 0),
-))
-
-LIGHTNING_BRANCHES = (
-    (0.30, rasterize_polyline(((2, 10), (1, 8), (0, 7)))),
-    (0.54, rasterize_polyline(((7, 6), (9, 7), (11, 6)))),
-    (0.73, rasterize_polyline(((9, 3), (8, 1), (9, 0)))),
-)
+def flame_colors(progress: float) -> tuple[tuple[int, int, int], tuple[int, int, int]]:
+    if progress < 0.24:
+        return ELECTRIC_BLUE, PALE_CYAN
+    if progress < 0.55:
+        return DEEP_BLUE, CYAN
+    if progress < 0.80:
+        return VIOLET, ELECTRIC_BLUE
+    return MAGENTA, VIOLET
 
 
-def draw_bolt_pixels(
+def draw_eye_roots(image: Image.Image, frame: int) -> None:
+    """完整覆盖原版右眼四格，使所有火舌确实从这四个像素中喷出。"""
+    pulse = (PALE_CYAN, CYAN, PALE_CYAN, CYAN, PALE_CYAN, CYAN, PALE_CYAN, CYAN)[frame]
+    for cell_index, (source_x, source_y) in enumerate(RIGHT_EYE_PIXELS):
+        color = PALE_CYAN if cell_index == frame % len(RIGHT_EYE_PIXELS) else pulse
+        for y in range(source_y * 2, source_y * 2 + 2):
+            for x in range(source_x * 2, source_x * 2 + 2):
+                composite_pixel(image, (x, y), color, 238)
+
+
+def draw_flame_strand(
     image: Image.Image,
-    points: list[tuple[int, int]],
-    visible_count: int,
-    alpha_scale: float,
-    breakup: int | None = None,
+    vertices: tuple[tuple[int, int], ...],
+    frame: int,
+    strand_index: int,
 ) -> None:
-    visible_points = points[:visible_count]
+    points = rasterize_polyline(vertices)
+    last_index = max(1, len(points) - 1)
 
-    # 偏移一格的墨绿阴影先落笔，随后才画带微绿相的近白电芯。
-    for index, (x, y) in enumerate(visible_points):
-        if breakup is not None and (index + breakup) % 4 == 0:
+    # 先画不规则外焰；刻意留洞，避免变成四条发光管线。
+    for point_index, (x, y) in enumerate(points):
+        progress = point_index / last_index
+        outer, _ = flame_colors(progress)
+        for direction_index, (offset_x, offset_y) in enumerate(((1, 0), (-1, 0), (0, 1), (0, -1))):
+            if (point_index * 3 + direction_index + frame + strand_index) % 5 == 0:
+                continue
+            composite_pixel(image, (x + offset_x, y + offset_y), outer, 112 if progress < 0.75 else 156)
+
+    # 内焰在部分帧主动断点，抽掉的像素会让高速甩动更有力量。
+    for point_index, position in enumerate(points):
+        progress = point_index / last_index
+        _, core = flame_colors(progress)
+        if 0.28 < progress < 0.82 and (point_index + frame * 2 + strand_index) % 7 == 0:
             continue
-        composite_pixel(image, (x + 1, y), INK_GREEN, round(220 * alpha_scale))
-        composite_pixel(image, (x, y + 1), DARK_GREEN, round(150 * alpha_scale))
-
-    for index, position in enumerate(visible_points):
-        if breakup is not None and (index + breakup) % 4 == 0:
-            continue
-        distance_from_head = visible_count - index - 1
-        if distance_from_head <= 1:
-            color, alpha = GREEN_WHITE, 255
-        elif distance_from_head <= 4:
-            color, alpha = PALE_GREEN, 238
-        else:
-            color, alpha = GREEN_WHITE, 218
-        composite_pixel(image, position, color, round(alpha * alpha_scale))
-
-
-def draw_lightning(image: Image.Image, frame: int) -> None:
-    """让电光依次经历生长、贯穿定格、分段熄灭，而不是整条平移。"""
-    local_frame = frame - LIGHTNING_START
-    grow_end = LIGHTNING_GROW_FRAMES
-    hold_end = grow_end + LIGHTNING_HOLD_FRAMES
-
-    if local_frame < grow_end:
-        progress = (local_frame + 1) / LIGHTNING_GROW_FRAMES
-        visible_count = max(1, math.ceil(len(LIGHTNING_PATH) * progress))
-        alpha_scale = 1.0
-        breakup = None
-    elif local_frame < hold_end:
-        progress = 1.0
-        visible_count = len(LIGHTNING_PATH)
-        alpha_scale = 1.0
-        breakup = None
-    else:
-        fade_frame = local_frame - hold_end
-        progress = 1.0
-        visible_count = len(LIGHTNING_PATH)
-        alpha_scale = (0.72, 0.46, 0.25, 0.10)[fade_frame]
-        breakup = fade_frame
-
-    draw_bolt_pixels(image, LIGHTNING_PATH, visible_count, alpha_scale, breakup)
-
-    for branch_progress, branch in LIGHTNING_BRANCHES:
-        if progress < branch_progress:
-            continue
-        branch_amount = min(1.0, (progress - branch_progress) / 0.16)
-        branch_count = max(1, math.ceil(len(branch) * branch_amount))
-        draw_bolt_pixels(image, branch, branch_count, alpha_scale * 0.82, breakup)
-
-
-def build_perimeter() -> tuple[tuple[int, int], ...]:
-    """按顺时针顺序返回贴图最外圈；它位于常规图标轮廓之外。"""
-    points = [(x, 0) for x in range(FRAME_SIZE)]
-    points.extend((FRAME_SIZE - 1, y) for y in range(1, FRAME_SIZE))
-    points.extend((x, FRAME_SIZE - 1) for x in range(FRAME_SIZE - 2, -1, -1))
-    points.extend((0, y) for y in range(FRAME_SIZE - 2, 0, -1))
-    return tuple(points)
-
-
-PERIMETER = build_perimeter()
-TRACER_LENGTH = 8
-
-
-def draw_tracer(
-    image: Image.Image,
-    head: int,
-    direction: int,
-    alpha_scale: float,
-) -> None:
-    """绘制一段有亮头和衰减尾迹的框线游标。"""
-    trail_colors = (
-        (GREEN_WHITE, 246),
-        (PALE_GREEN, 226),
-        (MUTED_GREEN, 205),
-        (DARK_GREEN, 188),
-        (DARK_GREEN, 146),
-        (INK_GREEN, 112),
-        (INK_GREEN, 76),
-        (INK_GREEN, 42),
-    )
-    for trail_index, (color, alpha) in enumerate(trail_colors):
-        perimeter_index = (head - direction * trail_index) % len(PERIMETER)
-        composite_pixel(
-            image,
-            PERIMETER[perimeter_index],
-            color,
-            round(alpha * alpha_scale),
-        )
-
-
-def draw_moving_outline(image: Image.Image, frame: int, start: int) -> None:
-    """两段残缺框线沿外圈相向奔跑，全程不组成静态矩形。"""
-    local_frame = frame - start
-    progress = local_frame / (OUTLINE_DURATION - 1)
-    alpha_curve = (0.48, 0.82, 1.0, 1.0, 0.88, 0.64, 0.34)
-    distance = round(progress * (len(PERIMETER) * 0.72))
-
-    clockwise_head = distance % len(PERIMETER)
-    counterclockwise_head = (len(PERIMETER) // 2 - distance) % len(PERIMETER)
-    draw_tracer(image, clockwise_head, 1, alpha_curve[local_frame])
-    draw_tracer(image, counterclockwise_head, -1, alpha_curve[local_frame] * 0.88)
+        alpha = 250 if progress < 0.58 else 224
+        composite_pixel(image, position, core, alpha)
 
 
 def render_frame(frame: int) -> Image.Image:
     image = Image.new("RGBA", (FRAME_SIZE, FRAME_SIZE), TRANSPARENT)
+    draw_eye_roots(image, frame)
 
-    for start in OUTLINE_STARTS:
-        if start <= frame < start + OUTLINE_DURATION:
-            draw_moving_outline(image, frame, start)
+    for strand_index, vertices in enumerate(FLAME_KEYFRAMES[frame]):
+        draw_flame_strand(image, vertices, frame, strand_index)
 
-    lightning_duration = LIGHTNING_GROW_FRAMES + LIGHTNING_HOLD_FRAMES + LIGHTNING_FADE_FRAMES
-    if LIGHTNING_START <= frame < LIGHTNING_START + lightning_duration:
-        draw_lightning(image, frame)
+    for spark_index, (x, y, color) in enumerate(SPARK_KEYFRAMES[frame]):
+        composite_pixel(image, (x, y), color, 230 if spark_index == 0 else 178)
+        if (frame + spark_index) % 3 == 0:
+            composite_pixel(image, (x - 1, y + 1), DEEP_BLUE, 92)
 
     return image
 
