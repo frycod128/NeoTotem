@@ -26,7 +26,7 @@
 ## 资源结构
 
 - `assets/immortalitytotem/items`：26.2 客户端物品定义。
-- `assets/immortalitytotem/models/item`：原版图腾底图与换色遮罩组合模型。
-- `assets/immortalitytotem/textures/item`：40 帧工件材质、局部能量呼吸、异步眼闪与短促故障动画遮罩。
+- `assets/immortalitytotem/models/item`：材质包底图与独立几何动效遮罩组合模型。
+- `assets/immortalitytotem/textures/item`：与底层材质无关的低频斜向绿调电光和高频游走残缺外框动画遮罩。
 - `data/immortalitytotem/recipe`：九图腾合成配方。
-- `tools/generate_totem_overlay.py`：从本地 26.2 原版纹理确定性重建动画遮罩和 `.png.mcmeta`。
+- `tools/generate_totem_overlay.py`：不读取原版纹理，确定性生成几何动画遮罩和 `.png.mcmeta`。

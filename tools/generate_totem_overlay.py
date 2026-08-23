@@ -1,223 +1,243 @@
-"""从原版图腾生成具有清晰工件材质、局部能量脉冲和短促故障的动画遮罩。"""
+"""生成与底层图标材质无关的永生图腾动画特效遮罩。"""
 
 from __future__ import annotations
 
 import argparse
-import colorsys
 import json
 import math
-import zipfile
 from pathlib import Path
 
 from PIL import Image
 
 
-VANILLA_TEXTURE = "assets/minecraft/textures/item/totem_of_undying.png"
 FRAME_SIZE = 16
-FRAME_COUNT = 40
+FRAME_COUNT = 120
 
-# 三次不等间隔、仅持续一帧的局部故障；不存在连续滚动扫描线。
-GLITCH_FRAMES = {
-    8: (5, 1, (25, 225, 240)),
-    25: (10, -1, (145, 241, 52)),
-    34: (3, 1, (255, 214, 58)),
-}
-DROPOUT_FRAMES = {
-    16: ((6, 4), (9, 5)),
-    29: ((7, 11), (9, 12)),
-}
-FLASH_FRAME = 35
+# 每帧持续两个游戏刻：完整循环 12 秒。
+LIGHTNING_START = 50
+LIGHTNING_GROW_FRAMES = 9
+LIGHTNING_HOLD_FRAMES = 1
+LIGHTNING_FADE_FRAMES = 4
+OUTLINE_STARTS = (4, 24, 44, 64, 84, 104)
+OUTLINE_DURATION = 7
 
-EYE_PIXELS = {
-    (6, 4), (9, 4),
-    (5, 5), (6, 5), (9, 5), (10, 5),
-}
-CORE_INNER = {
-    (7, 10), (8, 10),
-    (7, 11), (8, 11),
-    (7, 12), (8, 12),
-}
-CORE_OUTER = {
-    (6, 10), (9, 10),
-    (6, 11), (9, 11),
-    (6, 12), (9, 12),
-    (6, 13), (9, 13),
-}
-ENERGY_CRACKS = {
-    (5, 7), (10, 7),
-    (4, 8), (11, 8),
-    (5, 9), (10, 9),
-    (5, 11), (10, 11),
-    (5, 13), (10, 13),
-}
+TRANSPARENT = (0, 0, 0, 0)
+INK_GREEN = (3, 21, 16)
+DARK_GREEN = (10, 47, 35)
+MUTED_GREEN = (74, 119, 91)
+PALE_GREEN = (199, 222, 205)
+GREEN_WHITE = (241, 248, 243)
 
 
-def mix(first: float, second: float, amount: float) -> float:
-    return first * (1.0 - amount) + second * amount
+def composite_pixel(
+    image: Image.Image,
+    position: tuple[int, int],
+    color: tuple[int, int, int],
+    alpha: int,
+) -> None:
+    """按标准 alpha 规则将一个特效像素叠到当前帧。"""
+    x, y = position
+    if not (0 <= x < FRAME_SIZE and 0 <= y < FRAME_SIZE) or alpha <= 0:
+        return
+
+    old_red, old_green, old_blue, old_alpha = image.getpixel(position)
+    source_alpha = alpha / 255.0
+    destination_alpha = old_alpha / 255.0
+    result_alpha = source_alpha + destination_alpha * (1.0 - source_alpha)
+    if result_alpha == 0.0:
+        image.putpixel(position, TRANSPARENT)
+        return
+
+    channels = tuple(
+        round(
+            (source * source_alpha + destination * destination_alpha * (1.0 - source_alpha))
+            / result_alpha
+        )
+        for source, destination in zip(color, (old_red, old_green, old_blue))
+    )
+    image.putpixel(position, (*channels, round(result_alpha * 255)))
 
 
-def mix_color(first: tuple[int, int, int], second: tuple[int, int, int], amount: float) -> tuple[int, int, int]:
-    return tuple(round(mix(a, b, amount)) for a, b in zip(first, second))
+def rasterize_line(start: tuple[int, int], end: tuple[int, int]) -> list[tuple[int, int]]:
+    """用 Bresenham 算法生成连续且保持像素硬边的线段。"""
+    x, y = start
+    end_x, end_y = end
+    delta_x = abs(end_x - x)
+    delta_y = -abs(end_y - y)
+    step_x = 1 if x < end_x else -1
+    step_y = 1 if y < end_y else -1
+    error = delta_x + delta_y
+    points: list[tuple[int, int]] = []
+
+    while True:
+        points.append((x, y))
+        if (x, y) == (end_x, end_y):
+            return points
+        doubled_error = 2 * error
+        if doubled_error >= delta_y:
+            error += delta_y
+            x += step_x
+        if doubled_error <= delta_x:
+            error += delta_x
+            y += step_y
 
 
-def quantize(channel: float) -> int:
-    """使用 17 级硬色阶，避免光滑渐变造成圆润感。"""
-    return max(0, min(255, round(channel / 17.0) * 17))
+def rasterize_polyline(vertices: tuple[tuple[int, int], ...]) -> list[tuple[int, int]]:
+    points: list[tuple[int, int]] = []
+    for start, end in zip(vertices, vertices[1:]):
+        segment = rasterize_line(start, end)
+        if points and segment[0] == points[-1]:
+            segment = segment[1:]
+        points.extend(segment)
+    return points
 
 
-def source_luminance(pixel: tuple[int, int, int, int]) -> float:
-    red, green, blue, _ = pixel
-    return (red * 0.2126 + green * 0.7152 + blue * 0.0722) / 255.0
+# 一条从左下向右上贯穿图标的折线；转折有意不规则，避免再次成为平直扫光。
+LIGHTNING_PATH = rasterize_polyline((
+    (0, 15), (1, 13), (3, 12), (2, 10), (5, 9), (4, 7), (7, 6),
+    (6, 4), (9, 5), (9, 3), (12, 2), (11, 0), (14, 1), (15, 0),
+))
+
+LIGHTNING_BRANCHES = (
+    (0.30, rasterize_polyline(((2, 10), (1, 8), (0, 7)))),
+    (0.54, rasterize_polyline(((7, 6), (9, 7), (11, 6)))),
+    (0.73, rasterize_polyline(((9, 3), (8, 1), (9, 0)))),
+)
 
 
-def material_color(x: int, y: int, luminance: float) -> tuple[tuple[int, int, int], float]:
-    """给头部、骨/石面板、金属框和躯干侧板分配可辨识的低饱和材质。"""
-    oxidized_teal = (45, 105, 102)
-    dark_blue_gray = (33, 54, 68)
-    old_gold = (174, 132, 55)
-    pale_stone = (207, 205, 174)
-    bone_highlight = (231, 225, 190)
+def draw_bolt_pixels(
+    image: Image.Image,
+    points: list[tuple[int, int]],
+    visible_count: int,
+    alpha_scale: float,
+    breakup: int | None = None,
+) -> None:
+    visible_points = points[:visible_count]
 
-    # 原版最暗一档统一成为蓝灰结构线，先把头、手臂和躯干切割成清楚的工件面板。
-    if luminance < 0.28:
-        return dark_blue_gray, 0.78
-    if y <= 6:
-        if x <= 5 or x >= 10:
-            color, alpha_scale = oxidized_teal, 0.70
-        elif luminance >= 0.72:
-            color, alpha_scale = bone_highlight, 0.32
-        elif 6 <= x <= 9 and 2 <= y <= 3:
-            color, alpha_scale = pale_stone, 0.40
+    # 偏移一格的墨绿阴影先落笔，随后才画带微绿相的近白电芯。
+    for index, (x, y) in enumerate(visible_points):
+        if breakup is not None and (index + breakup) % 4 == 0:
+            continue
+        composite_pixel(image, (x + 1, y), INK_GREEN, round(220 * alpha_scale))
+        composite_pixel(image, (x, y + 1), DARK_GREEN, round(150 * alpha_scale))
+
+    for index, position in enumerate(visible_points):
+        if breakup is not None and (index + breakup) % 4 == 0:
+            continue
+        distance_from_head = visible_count - index - 1
+        if distance_from_head <= 1:
+            color, alpha = GREEN_WHITE, 255
+        elif distance_from_head <= 4:
+            color, alpha = PALE_GREEN, 238
         else:
-            color, alpha_scale = old_gold, 0.55
-    elif y <= 9:
-        if x <= 3 or x >= 12:
-            color, alpha_scale = oxidized_teal, 0.74
-        elif luminance >= 0.72:
-            color, alpha_scale = pale_stone, 0.34
-        else:
-            color, alpha_scale = old_gold, 0.56
+            color, alpha = GREEN_WHITE, 218
+        composite_pixel(image, position, color, round(alpha * alpha_scale))
+
+
+def draw_lightning(image: Image.Image, frame: int) -> None:
+    """让电光依次经历生长、贯穿定格、分段熄灭，而不是整条平移。"""
+    local_frame = frame - LIGHTNING_START
+    grow_end = LIGHTNING_GROW_FRAMES
+    hold_end = grow_end + LIGHTNING_HOLD_FRAMES
+
+    if local_frame < grow_end:
+        progress = (local_frame + 1) / LIGHTNING_GROW_FRAMES
+        visible_count = max(1, math.ceil(len(LIGHTNING_PATH) * progress))
+        alpha_scale = 1.0
+        breakup = None
+    elif local_frame < hold_end:
+        progress = 1.0
+        visible_count = len(LIGHTNING_PATH)
+        alpha_scale = 1.0
+        breakup = None
     else:
-        if x in (4, 5, 10, 11):
-            color, alpha_scale = dark_blue_gray, 0.76
-        elif x in (6, 9):
-            color, alpha_scale = old_gold, 0.58
-        elif x in (7, 8):
-            color, alpha_scale = pale_stone, 0.40
-        else:
-            color, alpha_scale = oxidized_teal, 0.68
+        fade_frame = local_frame - hold_end
+        progress = 1.0
+        visible_count = len(LIGHTNING_PATH)
+        alpha_scale = (0.72, 0.46, 0.25, 0.10)[fade_frame]
+        breakup = fade_frame
 
-    # 完整保留原版明暗阶；材质遮罩不再把所有像素压成同一高饱和度。
-    if luminance < 0.28:
-        shade = 0.68
-    elif luminance < 0.52:
-        shade = 0.82
-    elif luminance < 0.76:
-        shade = 0.94
-    else:
-        shade = 1.0
-    return tuple(quantize(channel * shade) for channel in color), alpha_scale
+    draw_bolt_pixels(image, LIGHTNING_PATH, visible_count, alpha_scale, breakup)
+
+    for branch_progress, branch in LIGHTNING_BRANCHES:
+        if progress < branch_progress:
+            continue
+        branch_amount = min(1.0, (progress - branch_progress) / 0.16)
+        branch_count = max(1, math.ceil(len(branch) * branch_amount))
+        draw_bolt_pixels(image, branch, branch_count, alpha_scale * 0.82, breakup)
 
 
-def pulse_amount(frame: int) -> float:
-    """带停顿感的呼吸曲线：能量快速点亮，短暂停留，再缓慢回落。"""
-    phase = frame / FRAME_COUNT
-    base = 0.5 - 0.5 * math.cos(math.tau * phase)
-    return base ** 1.35
+def build_perimeter() -> tuple[tuple[int, int], ...]:
+    """按顺时针顺序返回贴图最外圈；它位于常规图标轮廓之外。"""
+    points = [(x, 0) for x in range(FRAME_SIZE)]
+    points.extend((FRAME_SIZE - 1, y) for y in range(1, FRAME_SIZE))
+    points.extend((x, FRAME_SIZE - 1) for x in range(FRAME_SIZE - 2, -1, -1))
+    points.extend((0, y) for y in range(FRAME_SIZE - 2, 0, -1))
+    return tuple(points)
 
 
-def energy_color(pulse: float, offset: float = 0.0) -> tuple[int, int, int]:
-    # 静息为青色，峰值经过翡翠/酸橙到少量黄白；只有能量像素使用高饱和色。
-    hue = mix(0.50, 0.18, min(1.0, max(0.0, pulse + offset)))
-    saturation = mix(0.82, 0.68, pulse)
-    value = mix(0.58, 1.0, pulse)
-    red, green, blue = colorsys.hsv_to_rgb(hue, saturation, value)
-    return quantize(red * 255), quantize(green * 255), quantize(blue * 255)
+PERIMETER = build_perimeter()
+TRACER_LENGTH = 8
 
 
-def render_pixel(source: Image.Image, x: int, y: int, frame: int) -> tuple[int, int, int, int]:
-    source_pixel = source.getpixel((x, y))
-    source_alpha = source_pixel[3]
-    if source_alpha == 0:
-        return 0, 0, 0, 0
-
-    luminance = source_luminance(source_pixel)
-    color, alpha_scale = material_color(x, y, luminance)
-    pulse = pulse_amount(frame)
-
-    if (x, y) in EYE_PIXELS:
-        # 两眼有轻微相位差；第 18 帧单眼短暂熄灭，避免机械同步闪烁。
-        left_eye = x < FRAME_SIZE // 2
-        eye_pulse = min(1.0, max(0.0, pulse + (0.10 if left_eye else -0.06)))
-        color = energy_color(eye_pulse, 0.04 if left_eye else -0.02)
-        alpha_scale = 0.62 + eye_pulse * 0.36
-        if frame == 18 and left_eye:
-            color, alpha_scale = (17, 34, 42), 0.88
-    elif (x, y) in CORE_INNER:
-        color = energy_color(pulse, 0.10)
-        alpha_scale = 0.44 + pulse * 0.52
-        if frame == FLASH_FRAME:
-            color, alpha_scale = (238, 255, 204), 1.0
-    elif (x, y) in CORE_OUTER:
-        expansion = max(0.0, (pulse - 0.18) / 0.82)
-        color = energy_color(expansion, -0.04)
-        alpha_scale = 0.20 + expansion * 0.70
-    elif (x, y) in ENERGY_CRACKS:
-        crack_wave = max(0.0, pulse - 0.48) / 0.52
-        # 相邻裂纹错开点亮，产生局部能量流动而不是整图统一变色。
-        stagger = ((x * 3 + y * 5 + frame // 2) % 7) / 6.0
-        active = max(0.0, crack_wave - stagger * 0.35)
-        if active > 0.08:
-            color = energy_color(active, -0.08)
-            alpha_scale = 0.18 + active * 0.70
-
-    return color[0], color[1], color[2], round(source_alpha * min(1.0, alpha_scale))
+def draw_tracer(
+    image: Image.Image,
+    head: int,
+    direction: int,
+    alpha_scale: float,
+) -> None:
+    """绘制一段有亮头和衰减尾迹的框线游标。"""
+    trail_colors = (
+        (GREEN_WHITE, 246),
+        (PALE_GREEN, 226),
+        (MUTED_GREEN, 205),
+        (DARK_GREEN, 188),
+        (DARK_GREEN, 146),
+        (INK_GREEN, 112),
+        (INK_GREEN, 76),
+        (INK_GREEN, 42),
+    )
+    for trail_index, (color, alpha) in enumerate(trail_colors):
+        perimeter_index = (head - direction * trail_index) % len(PERIMETER)
+        composite_pixel(
+            image,
+            PERIMETER[perimeter_index],
+            color,
+            round(alpha * alpha_scale),
+        )
 
 
-def apply_glitch(frame_image: Image.Image, source: Image.Image, frame: int) -> None:
-    glitch = GLITCH_FRAMES.get(frame)
-    if glitch is not None:
-        row, shift, echo_color = glitch
-        original_row = [frame_image.getpixel((x, row)) for x in range(FRAME_SIZE)]
-        source_row = [source.getpixel((x, row)) for x in range(FRAME_SIZE)]
-        occupied = [x for x in range(FRAME_SIZE) if source_row[x][3] > 0]
-        # 只错位行中间一小段，绝不把整行做成连续扫描条。
-        if occupied:
-            start = occupied[len(occupied) // 3]
-            end = occupied[min(len(occupied) - 1, len(occupied) * 2 // 3)]
-            for x in range(start, end + 1):
-                if source_row[x][3] == 0:
-                    continue
-                frame_image.putpixel((x, row), (*echo_color, 220))
-                shifted_x = x + shift
-                if 0 <= shifted_x < FRAME_SIZE:
-                    frame_image.putpixel((shifted_x, row), original_row[x])
-            # 单个轮廓外色差像素让故障一眼可见，但不会形成横向长条。
-            echo_x = (max(occupied) + 1) if shift > 0 else (min(occupied) - 1)
-            if 0 <= echo_x < FRAME_SIZE:
-                frame_image.putpixel((echo_x, row), (*echo_color, 210))
+def draw_moving_outline(image: Image.Image, frame: int, start: int) -> None:
+    """两段残缺框线沿外圈相向奔跑，全程不组成静态矩形。"""
+    local_frame = frame - start
+    progress = local_frame / (OUTLINE_DURATION - 1)
+    alpha_curve = (0.48, 0.82, 1.0, 1.0, 0.88, 0.64, 0.34)
+    distance = round(progress * (len(PERIMETER) * 0.72))
 
-    # 两个不相邻帧出现局部“像素断电”，下一帧立即恢复。
-    for position in DROPOUT_FRAMES.get(frame, ()):
-        if source.getpixel(position)[3] > 0:
-            frame_image.putpixel(position, (12, 25, 31, 235))
+    clockwise_head = distance % len(PERIMETER)
+    counterclockwise_head = (len(PERIMETER) // 2 - distance) % len(PERIMETER)
+    draw_tracer(image, clockwise_head, 1, alpha_curve[local_frame])
+    draw_tracer(image, counterclockwise_head, -1, alpha_curve[local_frame] * 0.88)
 
 
-def generate(source_jar: Path, output: Path) -> None:
-    with zipfile.ZipFile(source_jar) as archive, archive.open(VANILLA_TEXTURE) as source_file:
-        source = Image.open(source_file).convert("RGBA")
+def render_frame(frame: int) -> Image.Image:
+    image = Image.new("RGBA", (FRAME_SIZE, FRAME_SIZE), TRANSPARENT)
 
-    if source.size != (FRAME_SIZE, FRAME_SIZE):
-        raise ValueError(f"Expected vanilla totem texture to be 16x16, got {source.size!r}")
+    for start in OUTLINE_STARTS:
+        if start <= frame < start + OUTLINE_DURATION:
+            draw_moving_outline(image, frame, start)
 
-    overlay = Image.new("RGBA", (FRAME_SIZE, FRAME_SIZE * FRAME_COUNT))
+    lightning_duration = LIGHTNING_GROW_FRAMES + LIGHTNING_HOLD_FRAMES + LIGHTNING_FADE_FRAMES
+    if LIGHTNING_START <= frame < LIGHTNING_START + lightning_duration:
+        draw_lightning(image, frame)
+
+    return image
+
+
+def generate(output: Path) -> None:
+    overlay = Image.new("RGBA", (FRAME_SIZE, FRAME_SIZE * FRAME_COUNT), TRANSPARENT)
     for frame in range(FRAME_COUNT):
-        frame_image = Image.new("RGBA", source.size)
-        for y in range(FRAME_SIZE):
-            for x in range(FRAME_SIZE):
-                frame_image.putpixel((x, y), render_pixel(source, x, y, frame))
-        apply_glitch(frame_image, source, frame)
-        overlay.paste(frame_image, (0, frame * FRAME_SIZE))
+        overlay.paste(render_frame(frame), (0, frame * FRAME_SIZE))
 
     output.parent.mkdir(parents=True, exist_ok=True)
     overlay.save(output, format="PNG", optimize=True)
@@ -235,10 +255,9 @@ def generate(source_jar: Path, output: Path) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("source_jar", type=Path)
     parser.add_argument("output", type=Path)
     args = parser.parse_args()
-    generate(args.source_jar, args.output)
+    generate(args.output)
 
 
 if __name__ == "__main__":
