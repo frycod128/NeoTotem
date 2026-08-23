@@ -28,7 +28,7 @@ displayName="${mod_name}"
 #displayURL="https://change.me.to.your.mods.homepage.example.invalid/"
 
 # JAR 根目录中的徽标文件，可选；不是 assets 目录中的纹理路径。
-#logoFile="immortalitytotem.png"
+logoFile="immortalitytotem.png"
 
 # 模组列表中的鸣谢与作者信息，可选。
 #credits=""
