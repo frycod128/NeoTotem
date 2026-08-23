@@ -1,42 +1,32 @@
+# Immortality Totem / 永生图腾
 
-# NeoForge 26.2 示例模组
+面向 Minecraft 26.2、NeoForge 26.2.0.66、Java 25 的双端模组。
 
-本项目在官方 MDK 基础上为核心逻辑补充了中文注释，并提供了一个能够完整显示、放置和掉落的最小示例。建议按下面的顺序阅读：
+模组只加入一个物品：九个原版不死图腾以 3×3 合成为一个永生图腾。它存在于玩家原版物品栏的
+任意槽位时，将生命值下限稳定在 `1.0F` 并阻止标准死亡、代码杀、`KILLED` 移除和死亡重生；
+移出物品栏后立即恢复原版逻辑。非玩家生物手持时，它使用原版死亡保护组件，行为等同普通不死图腾。
 
-1. `ExampleMod.java`：入口、延迟注册、两类事件总线、创造模式标签页和生命周期线程。
-2. `Config.java`：配置声明、校验、加载/重载事件，以及供业务代码读取的不可变快照。
-3. `ExampleModClient.java`：物理侧隔离、客户端配置界面和客户端主线程调度。
-4. `src/main/resources/assets/examplemod`：语言、方块状态、方块模型和 26.2 客户端物品模型。
-5. `src/main/resources/data/examplemod`：服务端数据资源；当前示例包含方块掉落表。
+完整需求、调用链、兼容性边界和测试矩阵见 [IMMORTALITY_DESIGN.md](IMMORTALITY_DESIGN.md)。
 
-常用命令（Windows）：
+## 构建
+
+```powershell
+.\gradlew.bat build
+```
+
+产物位于 `build/libs/immortalitytotem-1.0.0.jar`。客户端与服务端都应安装同一版本。
+
+## 开发运行
 
 ```powershell
 .\gradlew.bat runClient
 .\gradlew.bat runServer
-.\gradlew.bat build
 ```
 
-注册表内容、客户端资源和服务端数据是三层不同的工作：Java 注册成功并不代表模型、翻译或掉落表会自动生成。扩展示例方块/物品时，应同步补齐相应资源，或改用数据生成器批量生成。
+## 资源结构
 
-# Installation information
-
-This template repository can be directly cloned to get you started with a new
-mod. Simply create a new repository cloned from this one, by following the
-instructions provided by [GitHub](https://docs.github.com/en/repositories/creating-and-managing-repositories/creating-a-repository-from-a-template).
-
-Once you have your clone, simply open the repository in the IDE of your choice. The usual recommendation for an IDE is either IntelliJ IDEA or Eclipse.
-
-If at any point you are missing libraries in your IDE, or you've run into problems you can
-run `gradlew --refresh-dependencies` to refresh the local cache. `gradlew clean` to reset everything 
-{this does not affect your code} and then start the process again.
-
-## Mapping Names
-By default, the MDK is configured to use the official mapping names from Mojang for methods and fields 
-in the Minecraft codebase. These names are covered by a specific license. All modders should be aware of this
-license. For the latest license text, refer to the mapping file itself, or the reference copy here:
-https://github.com/NeoForged/NeoForm/blob/main/Mojang.md
-
-## Additional Resources
-Community Documentation: https://docs.neoforged.net/  
-NeoForged Discord: https://discord.neoforged.net/
+- `assets/immortalitytotem/items`：26.2 客户端物品定义。
+- `assets/immortalitytotem/models/item`：原版图腾底图与换色遮罩组合模型。
+- `assets/immortalitytotem/textures/item`：透明换色遮罩。
+- `data/immortalitytotem/recipe`：九图腾合成配方。
+- `tools/generate_totem_overlay.py`：从本地 26.2 原版纹理确定性重建遮罩。

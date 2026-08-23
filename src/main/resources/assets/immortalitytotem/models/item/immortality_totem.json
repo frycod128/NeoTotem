@@ -1,0 +1,7 @@
+{
+  "parent": "minecraft:item/generated",
+  "textures": {
+    "layer0": "minecraft:item/totem_of_undying",
+    "layer1": "immortalitytotem:item/immortality_totem_overlay"
+  }
+}

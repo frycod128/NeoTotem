@@ -35,7 +35,7 @@ repositories {
 }
 
 base {
-    // 最终文件名以模组 ID 开头，例如 examplemod-1.0.0.jar。
+    // 最终文件名以模组 ID 开头，例如 immortalitytotem-1.0.0.jar。
     archivesName = mod_id
 }
 
@@ -64,6 +64,8 @@ neoForge {
             server()
             programArgument '--nogui'
             systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+            // 开发专用运行期断言；正式 JAR 中未设置此属性，因此不会执行。
+            systemProperty 'immortalitytotem.selfTest', 'true'
         }
 
         /*
