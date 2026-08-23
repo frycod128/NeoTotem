@@ -1,0 +1,58 @@
+# Gradle
+.gradle/
+build/
+!**/src/**/build/
+
+# IntelliJ IDEA
+.idea/
+.run/
+*.iml
+*.ipr
+*.iws
+out/
+!**/src/**/out/
+
+# Eclipse
+.apt_generated/
+.classpath
+.eclipse/
+.factorypath
+.project
+.settings/
+.springBeans
+.sts4-cache/
+bin/
+!**/src/**/bin/
+
+# Visual Studio Code
+.vscode/
+
+# NetBeans
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+
+# Minecraft / NeoForge development runtime
+run/
+run-data/
+repo/
+!**/src/**/run/
+!**/src/**/repo/
+
+# Data generator cache (generated resources themselves remain trackable)
+src/generated/**/.cache/
+
+# Local environment and crash files
+.env
+.env.*
+!.env.example
+local.properties
+hs_err_pid*.log
+replay_pid*.log
+
+# Operating system metadata
+.DS_Store
+Thumbs.db
+Desktop.ini
