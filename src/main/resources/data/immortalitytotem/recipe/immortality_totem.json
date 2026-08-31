@@ -2,12 +2,15 @@
   "type": "minecraft:crafting_shaped",
   "category": "misc",
   "key": {
+    "A": "minecraft:amethyst_shard",
+    "D": "minecraft:diamond",
+    "G": "minecraft:gold_block",
     "T": "minecraft:totem_of_undying"
   },
   "pattern": [
-    "TTT",
-    "TTT",
-    "TTT"
+    "GGA",
+    "GTD",
+    "GGG"
   ],
   "result": {
     "count": 1,

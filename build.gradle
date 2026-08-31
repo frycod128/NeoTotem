@@ -31,7 +31,14 @@ sourceSets.main.resources {
 }
 
 repositories {
-    // 仅当下面声明的第三方依赖不在默认仓库时，才在此添加对应 Maven 仓库。
+    // 1. 使用阿里云公共仓库镜像，它代理了 Maven Central 等主流仓库
+    maven { url 'https://maven.aliyun.com/repository/public' }
+    // 2. 保留 NeoForge 的默认仓库，作为备用
+    maven { url = "https://maven.neoforged.net/releases/" }
+    // 3. 明确添加 Minecraft 的库仓库
+    maven { url = "https://libraries.minecraft.net/" }
+    // 仅当下面声明的第三方依赖不在默认仓库时，才在此添加对应额外的 Maven 仓库。
+    // 如果你有使用其他特殊仓库，也在这里添加
 }
 
 base {
