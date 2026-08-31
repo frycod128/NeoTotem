@@ -156,7 +156,14 @@ public final class ImmortalityTotemCasting {
         if (transition.missingRespawnBlock()) {
             transition = TeleportTransition.createDefault(player, TeleportTransition.DO_NOTHING);
         }
-        player.teleport(transition);
+        ServerPlayer teleported = player.teleport(transition);
+        // 只有确认成功传送后，才给图腾物品添加与引导时长等长的冷却
+        if (teleported != null) {
+            teleported.getCooldowns().addCooldown(
+                    ImmortalityTotemMod.IMMORTALITY_TOTEM.toStack(),
+                    3*DURATION_TICKS
+            );
+        }
     }
 
     /** 给引导中的玩家添加满额击退抗性和 -20% 移动速度。 */

@@ -102,6 +102,11 @@ public final class ImmortalityTotemItem extends Item {
             return InteractionResult.PASS;
         }
 
+        // 引导成功后的物品冷却只限制本轮右键启动
+        if (player.getCooldowns().isOnCooldown(player.getItemInHand(hand))) {
+            return InteractionResult.PASS;
+        }
+
         player.startUsingItem(hand);
 
         // 服务端确认真正开始使用后再加成属性；客户端只负责展示和播放
