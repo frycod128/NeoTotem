@@ -85,9 +85,11 @@ public final class ImmortalityEvents {
         if (needsStabilization(player)) {
             ImmortalityProtection.stabilize(player);
         }
+        // 物品停止回调之外的兜底：玩家意外停止使用图腾时同样结算引导结束副作用
+        ImmortalityTotemCasting.checkActive(player);
     }
 
-    /** 玩家登出时立刻取消引导，避免属性修饰符残留。 */
+    /** 玩家登出时立刻结算中断副作用，避免属性修饰符与活跃状态残留。 */
     @SubscribeEvent
     public void onPlayerLoggedOut(PlayerEvent.PlayerLoggedOutEvent event) {
         ImmortalityTotemCasting.cancel(event.getEntity());
