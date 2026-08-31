@@ -22,6 +22,7 @@ import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.common.util.FakePlayer;
 import net.neoforged.neoforge.common.util.FakePlayerFactory;
 import net.neoforged.neoforge.event.entity.living.LivingDeathEvent;
+import org.jetbrains.annotations.NotNull;
 
 /** 仅由开发运行系统属性启用的轻量运行期回归测试。 */
 final class ImmortalitySelfTest {
@@ -48,22 +49,31 @@ final class ImmortalitySelfTest {
                 "vanilla death protection component is missing"
         );
         // 构造 9 图腾合成配方的注册键
-        ResourceKey<Recipe<?>> recipeKey = ResourceKey.create(
+        ResourceKey<@NotNull Recipe<?>> recipeKey = ResourceKey.create(
                 Registries.RECIPE,
                 Identifier.fromNamespaceAndPath(ImmortalityTotemMod.MODID, "immortality_totem")
         );
         // 断言：配方已随数据包加载进服务端配方表
         require(level.recipeAccess().byKey(recipeKey).isPresent(), "nine-totem recipe was not loaded");
 
-        // —— 游标槽白名单：创造模式下鼠标所持（499 号槽 / "player.cursor"）的图腾同样生效 ——
-        // 清空物品栏，确保只有游标槽持有图腾
+        // —— 物品栏外槽位白名单：游标槽 / 合成格 / 末影箱中的图腾同样生效 ——
+        // 清空物品栏，确保只有待测槽位持有图腾
         player.getInventory().setItem(0, ItemStack.EMPTY);
+        // 游标槽（499 号 / "player.cursor"）：创造模式下鼠标所持的物品
         player.containerMenu.setCarried(totem);
-        // 断言：鼠标持有的图腾能被 hasTotem 发现
         require(ImmortalityProtection.hasTotem(player), "cursor-carried totem was not detected");
-        // 释放游标槽后必须立即失效
         player.containerMenu.setCarried(ItemStack.EMPTY);
         require(!ImmortalityProtection.hasTotem(player), "cursor whitelist did not release after clearing");
+        // 合成格（500-503 号 / "player.crafting"）：背包界面的 2x2 合成格
+        player.inventoryMenu.getCraftSlots().setItem(0, totem);
+        require(ImmortalityProtection.hasTotem(player), "crafting-slot totem was not detected");
+        player.inventoryMenu.getCraftSlots().setItem(0, ItemStack.EMPTY);
+        require(!ImmortalityProtection.hasTotem(player), "crafting whitelist did not release after clearing");
+        // 末影箱（200-226 号 / "enderchest"）
+        player.getEnderChestInventory().setItem(0, totem);
+        require(ImmortalityProtection.hasTotem(player), "ender-chest totem was not detected");
+        player.getEnderChestInventory().setItem(0, ItemStack.EMPTY);
+        require(!ImmortalityProtection.hasTotem(player), "ender-chest whitelist did not release after clearing");
         // 恢复物品栏第 0 格的图腾，不破坏后续测试
         player.getInventory().setItem(0, totem);
 

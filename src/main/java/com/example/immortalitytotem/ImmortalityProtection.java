@@ -2,9 +2,9 @@ package com.example.immortalitytotem;
 
 import net.minecraft.world.entity.Pose;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.SlotAccess;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.player.Inventory;
-import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.item.ItemStack;
 
 /**
@@ -24,7 +24,10 @@ public final class ImmortalityProtection {
         return entity instanceof Player player && hasTotem(player);
     }
 
-    /** 检查玩家是否持有永生图腾：物品栏各槽位，或创造模式下鼠标所持的游标槽（499 号 / "player.cursor"）。 */
+    /** 原版游标槽位号（字符串名 "player.cursor"）；Player 未公开该常量，SlotRanges 与 getSlot 均使用字面值 499。 */
+    private static final int CARRY_SLOT = 499;
+
+    /** 检查玩家是否持有永生图腾：物品栏、游标槽、合成格或末影箱。 */
     public static boolean hasTotem(Player player) {
         // 极早期构造调用通常不会发生；保留 null 防御可避免广泛 Mixin 在异常构造时崩溃。
         Inventory inventory = player.getInventory();
@@ -35,10 +38,28 @@ public final class ImmortalityProtection {
         if (inventory.contains(ImmortalityProtection::isImmortalityTotem)) {
             return true;
         }
-        // 白名单二：游标槽——创造模式下关闭物品栏后鼠标仍悬停持有的物品，
-        // 此时图腾不在任何物品栏格子里，只能从菜单的 carried 字段读取
-        AbstractContainerMenu menu = player.containerMenu;
-        return menu != null && isImmortalityTotem(menu.getCarried());
+        // 白名单二：游标槽——创造模式下关闭物品栏后鼠标仍悬停持有的物品
+        if (hasTotemInSlots(player, CARRY_SLOT, 1)) {
+            return true;
+        }
+        // 白名单三：背包界面的 2x2 合成格（原版槽位 500-503，字符串名 "player.crafting"）
+        if (hasTotemInSlots(player, Player.CRAFTING_SLOT_OFFSET, 4)) {
+            return true;
+        }
+        // 白名单四：末影箱（原版槽位 200-226，字符串名 "enderchest"）
+        return hasTotemInSlots(player, Player.ENDER_SLOT_OFFSET,
+                player.getEnderChestInventory().getContainerSize());
+    }
+
+    /** 遍历一段槽位号（走 Player.getSlot 的统一映射：游标/合成格/末影箱/物品栏），任一槽持有图腾即返回 true。 */
+    private static boolean hasTotemInSlots(Player player, int startSlot, int count) {
+        for (int i = 0; i < count; i++) {
+            SlotAccess access = player.getSlot(startSlot + i);
+            if (access != null && isImmortalityTotem(access.get())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** 判断一个物品栈是否为永生图腾（非空且物品 ID 匹配）。 */
