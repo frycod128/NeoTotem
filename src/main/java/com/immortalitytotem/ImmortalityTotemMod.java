@@ -1,4 +1,4 @@
-package com.example.immortalitytotem;
+package com.immortalitytotem;
 
 import com.mojang.logging.LogUtils;
 import net.minecraft.core.component.DataComponents;

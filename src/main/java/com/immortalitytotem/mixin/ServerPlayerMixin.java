@@ -1,6 +1,6 @@
-package com.example.immortalitytotem.mixin;
+package com.immortalitytotem.mixin;
 
-import com.example.immortalitytotem.ImmortalityProtection;
+import com.immortalitytotem.ImmortalityProtection;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.damagesource.DamageSource;
 import org.spongepowered.asm.mixin.Mixin;

@@ -162,6 +162,8 @@ dependencies {
  * 这能防止发布带有未替换元数据的 JAR。
  */
 var generateModMetadata = tasks.register("generateModMetadata", ProcessResources) {
+    // FML 要求版本号不含 v 前缀；保留 gradle.properties 中的展示版本，写元数据时去掉它。
+    def modMetadataVersion = mod_version.startsWith('v') ? mod_version.substring(1) : mod_version
     var replaceProperties = [
             minecraft_version      : minecraft_version,
             minecraft_version_range: minecraft_version_range,
@@ -169,7 +171,7 @@ var generateModMetadata = tasks.register("generateModMetadata", ProcessResources
             mod_id                 : mod_id,
             mod_name               : mod_name,
             mod_license            : mod_license,
-            mod_version            : mod_version,
+            mod_version            : modMetadataVersion,
     ]
     // 把属性声明为任务输入，使 Gradle 能正确判断任务是否需要重新执行。
     inputs.properties replaceProperties
@@ -180,6 +182,45 @@ var generateModMetadata = tasks.register("generateModMetadata", ProcessResources
 
 // 将生成的元数据作为主资源输入，保证 IDE 运行和正式构建使用同一份结果。
 sourceSets.main.resources.srcDir generateModMetadata
+
+/*
+ * 生成八帧火焰遮罩。任务由 processResources 自动触发，但只写 build/，
+ * 不修改 src/main/resources 中的源资源。
+ */
+tasks.register('generateTotemOverlay', Exec) {
+    group = 'mod'
+    description = 'Generates the eight-frame totem flame overlay and its .png.mcmeta.'
+
+    def javaExecutable = System.getProperty('java.home') + File.separator + 'bin' + File.separator +
+            (System.getProperty('os.name').toLowerCase().contains('windows') ? 'java.exe' : 'java')
+    commandLine javaExecutable,
+            file('tools/GenerateTotemOverlay.java').absolutePath,
+            layout.buildDirectory.file('generated/totemOverlay/immortality_totem_overlay.png')
+                    .get().asFile.absolutePath
+}
+
+/*
+ * 把生成的遮罩复制到 processResources 的输出目录，让 clean build 自动产出最新资源。
+ * 这里不改 src/main/resources，仓库中的源资源保持原样。
+ */
+tasks.register('stageTotemOverlay', Copy) {
+    dependsOn tasks.named('generateTotemOverlay')
+    from(layout.buildDirectory.dir('generated/totemOverlay'))
+    into(layout.buildDirectory.dir('resources/main/assets/immortalitytotem/textures/item'))
+}
+
+tasks.named('processResources') {
+    finalizedBy tasks.named('stageTotemOverlay')
+}
+
+tasks.named('jar') {
+    dependsOn tasks.named('stageTotemOverlay')
+}
+
+// 开发运行任务直接读取 build/resources/main，必须显式等待遮罩写完后才能启动。
+tasks.matching { it.name in ['runClient', 'runServer', 'runData', 'runGameTestServer'] }.configureEach {
+    dependsOn tasks.named('stageTotemOverlay')
+}
 
 // IDE 每次同步项目时生成元数据，无需开发者手动运行任务。
 neoForge.ideSyncTask generateModMetadata

@@ -1,4 +1,4 @@
-package com.example.immortalitytotem;
+package com.immortalitytotem;
 
 import java.util.HashMap;
 import java.util.Map;

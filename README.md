@@ -37,4 +37,5 @@
 - `assets/immortalitytotem/models/item`：材质包底图与独立几何动效遮罩组合模型。
 - `assets/immortalitytotem/textures/item`：从原版图腾右眼四格喷向右上方的八帧抽帧像素火焰遮罩。
 - `data/immortalitytotem/recipe`：合成配方。
-- `tools/generate_totem_overlay.py`：不读取原版纹理，确定性生成几何动画遮罩和 `.png.mcmeta`。
+- `tools/GenerateTotemOverlay.java`：不读取原版纹理，使用纯 JDK 确定性生成几何动画遮罩和
+  `.png.mcmeta`，不依赖 Python 或 Pillow。

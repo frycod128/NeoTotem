@@ -1,6 +1,6 @@
-package com.example.immortalitytotem.mixin;
+package com.immortalitytotem.mixin;
 
-import com.example.immortalitytotem.ImmortalityProtection;
+import com.immortalitytotem.ImmortalityProtection;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 import org.spongepowered.asm.mixin.Mixin;

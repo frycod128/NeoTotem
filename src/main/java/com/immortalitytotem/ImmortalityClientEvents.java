@@ -1,4 +1,4 @@
-package com.example.immortalitytotem;
+package com.immortalitytotem;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.DeathScreen;

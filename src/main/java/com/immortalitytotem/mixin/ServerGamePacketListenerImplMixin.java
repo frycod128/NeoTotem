@@ -1,6 +1,6 @@
-package com.example.immortalitytotem.mixin;
+package com.immortalitytotem.mixin;
 
-import com.example.immortalitytotem.ImmortalityProtection;
+import com.immortalitytotem.ImmortalityProtection;
 import net.minecraft.network.protocol.game.ServerboundClientCommandPacket;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.network.ServerGamePacketListenerImpl;

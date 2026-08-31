@@ -1,4 +1,4 @@
-package com.example.immortalitytotem;
+package com.immortalitytotem;
 
 import net.minecraft.world.entity.Pose;
 import net.minecraft.world.entity.LivingEntity;

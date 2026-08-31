@@ -1,4 +1,4 @@
-package com.example.immortalitytotem;
+package com.immortalitytotem;
 
 import net.minecraft.world.damagesource.DamageTypes;
 import net.minecraft.world.entity.player.Player;

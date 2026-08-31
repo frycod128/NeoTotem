@@ -1,4 +1,4 @@
-package com.example.immortalitytotem;
+package com.immortalitytotem;
 
 import com.mojang.authlib.GameProfile;
 import java.util.UUID;
