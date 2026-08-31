@@ -7,6 +7,7 @@ import net.neoforged.bus.api.EventPriority;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.neoforge.event.entity.living.LivingIncomingDamageEvent;
 import net.neoforged.neoforge.event.entity.living.LivingDamageEvent;
+import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.tick.PlayerTickEvent;
 import net.neoforged.neoforge.event.server.ServerStartedEvent;
 
@@ -84,6 +85,12 @@ public final class ImmortalityEvents {
         if (needsStabilization(player)) {
             ImmortalityProtection.stabilize(player);
         }
+    }
+
+    /** 玩家登出时立刻取消引导，避免属性修饰符残留。 */
+    @SubscribeEvent
+    public void onPlayerLoggedOut(PlayerEvent.PlayerLoggedOutEvent event) {
+        ImmortalityTotemCasting.cancel(event.getEntity());
     }
 
     /** 开发运行专用的运行期断言；正式 JAR 未设置该系统属性时完全不执行。 */

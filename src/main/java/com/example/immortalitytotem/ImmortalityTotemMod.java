@@ -3,7 +3,6 @@ package com.example.immortalitytotem;
 import com.mojang.logging.LogUtils;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.world.item.CreativeModeTabs;
-import net.minecraft.world.item.Item;
 import net.minecraft.world.item.Rarity;
 import net.minecraft.world.item.component.DeathProtection;
 import net.neoforged.bus.api.IEventBus;
@@ -29,9 +28,11 @@ public final class ImmortalityTotemMod {
      * DEATH_PROTECTION 让非玩家生物手持时完全复用原版不死图腾流程。
      * 玩家物品栏中的常驻保护由 ImmortalityProtection 和窄 Mixin 共同实现。
      */
-    public static final DeferredItem<Item> IMMORTALITY_TOTEM = ITEMS.registerSimpleItem(
+    public static final DeferredItem<ImmortalityTotemItem> IMMORTALITY_TOTEM = ITEMS.registerItem(
             // 注册名，最终物品 ID 为 immortalitytotem:immortality_totem
             "immortality_totem",
+            // 使用自定义物品类，以拦截主手右键并触发三秒引导
+            ImmortalityTotemItem::new,
             // 物品属性构造器：链式配置以下三项
             properties -> properties
                     // 不可堆叠，一格只能放一个
