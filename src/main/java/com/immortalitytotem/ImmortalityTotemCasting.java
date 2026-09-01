@@ -119,7 +119,7 @@ public final class ImmortalityTotemCasting {
 
         removeModifiers(player);
         if (player instanceof ServerPlayer serverPlayer) {
-            applyBlindness(serverPlayer);
+            applyBlindness(serverPlayer,true);
         }
     }
 
@@ -131,7 +131,7 @@ public final class ImmortalityTotemCasting {
         }
 
         removeModifiers(player);
-        applyBlindness(player);
+        applyBlindness(player,false);
 
         Vec3 origin = player.position();
         ServerLevel level = player.level();
@@ -230,16 +230,18 @@ public final class ImmortalityTotemCasting {
     }
 
     /** 叠加 6 秒或叠加 3 秒失明 I：已有失明时在其剩余时间上累加，而不是只刷新。 */
-    private static void applyBlindness(ServerPlayer player) {
+    private static void applyBlindness(ServerPlayer player , boolean Interrupt) {
         MobEffectInstance current = player.getEffect(MobEffects.BLINDNESS);
         int duration = 2*DURATION_TICKS;
+        if (Interrupt) {
+            duration /= 6;
+        }
         if (current != null && !current.isInfiniteDuration()) {
-            duration = (int) Math.min(
+            duration += (int) Math.min(
                     6*DURATION_TICKS,
-                    (long) current.getDuration() + DURATION_TICKS
+                    (long) current.getDuration()
             );
         }
-
         player.addEffect(new MobEffectInstance(
                 MobEffects.BLINDNESS,
                 duration,
