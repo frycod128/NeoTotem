@@ -1,17 +1,21 @@
 package com.immortalitytotem.mixin;
 
 import com.immortalitytotem.ImmortalityProtection;
+import com.immortalitytotem.ImmortalityTotemMod;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Pose;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ItemStack;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
@@ -130,6 +134,24 @@ abstract class LivingEntityMixin {
         if (reason == Entity.RemovalReason.KILLED && this.immortalitytotem$isProtected()) {
             this.immortalitytotem$clearDeathState();
             ci.cancel();
+        }
+    }
+
+    /**
+     * 非玩家生物携带图腾触发原版死亡保护时，跳过 itemStack.shrink(1)。
+     * 复活、粒子、药水效果仍完全走原版流程，只是图腾本身不被消耗。
+     */
+    @Redirect(
+            method = "checkTotemDeathProtection",
+            at = @At(
+                    value = "INVOKE",
+                    target = "Lnet/minecraft/world/item/ItemStack;shrink(I)V"
+            )
+    )
+    private void immortalitytotem$preserveTotemForNonPlayer(ItemStack stack, int amount) {
+        LivingEntity self = this.immortalitytotem$self();
+        if (self instanceof Player || !stack.is(ImmortalityTotemMod.IMMORTALITY_TOTEM.getKey())) {
+            stack.shrink(amount);
         }
     }
 }

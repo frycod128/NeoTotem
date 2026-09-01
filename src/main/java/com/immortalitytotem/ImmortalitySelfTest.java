@@ -10,9 +10,15 @@ import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.resources.ResourceKey;
+import net.minecraft.world.InteractionHand;
 import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntitySpawnReason;
+import net.minecraft.world.entity.EntitySpawnRequest;
+import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.entity.Pose;
+import net.minecraft.world.entity.monster.zombie.Zombie;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.component.DeathProtection;
 import net.minecraft.world.item.crafting.Recipe;
@@ -127,6 +133,34 @@ final class ImmortalitySelfTest {
         );
         // 断言：被拒绝后生命仍保持 1 点
         require(player.getHealth() == 1.0F, "generic_kill changed protected health");
+
+        // —— 非玩家生物：原版不死图腾效果生效，但图腾本身不消耗 ——
+        Zombie zombie = EntityTypes.ZOMBIE.create(
+                level,
+                new EntitySpawnRequest(EntitySpawnReason.MOB_SUMMONED, true)
+        );
+        require(zombie != null, "zombie test entity was not created");
+        zombie.setInvulnerable(false);
+        zombie.setHealth(zombie.getMaxHealth());
+        zombie.setItemInHand(InteractionHand.MAIN_HAND, ImmortalityTotemMod.IMMORTALITY_TOTEM.toStack());
+
+        boolean zombieDamageAccepted = zombie.hurtServer(level, zombie.damageSources().generic(), 1000.0F);
+        require(zombieDamageAccepted, "non-player totem damage was unexpectedly cancelled");
+        require(zombie.getHealth() == 1.0F, "non-player totem did not restore health to one");
+        require(!zombie.isDeadOrDying(), "non-player totem did not save the entity");
+        require(
+                // 不死生物按原版规则不吃再生，因此验证同样由普通图腾施加的吸收与抗火。
+                zombie.hasEffect(MobEffects.ABSORPTION)
+                        && zombie.hasEffect(MobEffects.FIRE_RESISTANCE),
+                "non-player totem did not apply vanilla death protection effects"
+        );
+        ItemStack heldTotem = zombie.getItemInHand(InteractionHand.MAIN_HAND);
+        require(
+                heldTotem.is(ImmortalityTotemMod.IMMORTALITY_TOTEM.getKey())
+                        && heldTotem.getCount() == 1,
+                "non-player totem was consumed"
+        );
+        zombie.discard();
 
         // —— 直接调用式绕过路径：kill / die / remove ——
         // 新建一个真实的 ServerPlayer 实例做直接调用测试
