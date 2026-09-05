@@ -214,12 +214,12 @@ public final class ImmortalityTotemCasting {
         );
     }
 
-    /** 施加 6 秒虚弱 V；已存在时强制刷新剩余时间。 */
+    /** 施加同引导时间的虚弱 V；已存在时刷新剩余时间。 */
     private static void applyWeakness(ServerPlayer player) {
         player.forceAddEffect(
                 new MobEffectInstance(
                         MobEffects.WEAKNESS,
-                        2*DURATION_TICKS,
+                        DURATION_TICKS,
                         WEAKNESS_AMPLIFIER,
                         false,
                         true,
@@ -229,12 +229,12 @@ public final class ImmortalityTotemCasting {
         );
     }
 
-    /** 叠加 6 秒或叠加 3 秒失明 I：已有失明时在其剩余时间上累加，而不是只刷新。 */
+    /** 叠加两倍引导时间或叠加五分之一引导时间的·秒失明 I：已有失明时在其剩余时间上累加，而不是只刷新。 */
     private static void applyBlindness(ServerPlayer player , boolean Interrupt) {
         MobEffectInstance current = player.getEffect(MobEffects.BLINDNESS);
         int duration = 2*DURATION_TICKS;
         if (Interrupt) {
-            duration /= 6;
+            duration /= 10;
         }
         if (current != null && !current.isInfiniteDuration()) {
             duration += (int) Math.min(
